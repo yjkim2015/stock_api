@@ -28,6 +28,9 @@ class StockServiceTest {
     private StockService stockService;
 
     @Autowired
+    private PessimisticLockStockService pessimisticLockStockService;
+
+    @Autowired
     private StockRepository stockRepository;
 
     @BeforeEach
@@ -71,5 +74,27 @@ class StockServiceTest {
         assertEquals(0, stock.getQuantity());
     }
 
+    @Test
+    public void 비관락_동시에_100개의_요청() throws InterruptedException {
+        int threadCount = 100;
+
+        ExecutorService executorService = Executors.newFixedThreadPool(32);
+        CountDownLatch countDownLatch = new CountDownLatch(threadCount);
+        for (int i = 0; i < threadCount; i++) {
+            executorService.submit(() -> {
+                try {
+                    pessimisticLockStockService.decrease(1L, 1L);
+                }
+                finally {
+                    countDownLatch.countDown();
+                }
+            });
+        }
+
+        countDownLatch.await();
+
+        Stock stock = stockRepository.findById(1L).orElseThrow();
+        assertEquals(0, stock.getQuantity());
+    }
 
 }
